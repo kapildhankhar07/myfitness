@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LifeTrack</title>
+<style>
+:root{--bg:#0e1320;--card:#161d2e;--line:#26304a;--tx:#eef1f8;--mu:#8b96b3;--ac:#ffb703;--ac2:#3dd6c6;--bad:#ff6b6b;--ok:#5ad08a;--r:14px}
+:root[data-t=light]{--bg:#f4f1ea;--card:#fff;--line:#ddd6c8;--tx:#1c2233;--mu:#6b7287;--ac:#c77d00;--ac2:#0a8f83;--bad:#c93c3c;--ok:#2a9a58}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,sans-serif;display:flex;min-height:100vh}
+h1,h2,h3{font-family:Georgia,serif;font-weight:600;margin:0 0 .5rem}h1{font-size:1.7rem}h2{font-size:1.2rem}
+nav{width:200px;background:var(--card);border-right:1px solid var(--line);padding:16px 10px;position:sticky;top:0;height:100vh;overflow:auto}
+nav b{display:block;font:700 1.3rem Georgia,serif;color:var(--ac);padding:0 10px 12px}
+nav button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--mu);padding:9px 12px;border-radius:10px;cursor:pointer;font:inherit}
+nav button.on{background:var(--bg);color:var(--ac)}nav button:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--ac2)}
+main{flex:1;padding:22px;max-width:980px;margin:0 auto;width:100%;padding-bottom:40px}
+.g{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:14px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}.g .c{margin:0}
+.big{font:600 1.9rem Georgia,serif;color:var(--ac)}.mu{color:var(--mu);font-size:.85rem}
+.row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}.row:last-child{border:0}.row>.f{flex:1;min-width:120px}
+button.b{background:var(--ac);color:#1a1300;border:0;border-radius:9px;padding:7px 13px;font:600 .85rem inherit;cursor:pointer}
+button.s{background:transparent;color:var(--tx);border:1px solid var(--line);border-radius:9px;padding:5px 10px;cursor:pointer;font:inherit;font-size:.82rem}
+button.d{color:var(--bad)}
+.bar{height:8px;background:var(--line);border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ac2)}
+.done{text-decoration:line-through;opacity:.55}.warn{color:var(--bad)}.tag{font-size:.72rem;border:1px solid var(--line);border-radius:20px;padding:1px 8px;color:var(--mu)}
+.cols{display:flex;align-items:flex-end;gap:6px;height:110px}.cols div{flex:1;text-align:center;font-size:.7rem;color:var(--mu);display:flex;flex-direction:column;justify-content:flex-end;height:100%}.cols i{display:block;background:var(--ac);border-radius:5px 5px 0 0;min-height:2px}
+.heat{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.heat i{aspect-ratio:1;border-radius:4px;background:var(--line)}
+.ov{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:20;padding:12px}.ov.on{display:flex}#frm,.ask{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:var(--r);width:min(440px,100%);max-height:92vh;overflow:auto;padding:16px}
+label{display:block;font-size:.8rem;color:var(--mu);margin-top:8px}input,select,textarea{width:100%;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:7px;font:inherit}input[type=checkbox]{width:auto}
+#toast{position:fixed;right:14px;top:14px;background:var(--ac);color:#1a1300;padding:10px 14px;border-radius:10px;display:none;z-index:9;max-width:80vw}
+@media(max-width:700px){body{display:block}nav{position:fixed;bottom:0;top:auto;left:0;right:0;width:auto;height:auto;display:flex;overflow-x:auto;z-index:5;border-right:0;border-top:1px solid var(--line);padding:4px}nav b{display:none}nav button{width:auto;white-space:nowrap;padding:8px 10px;font-size:.8rem}main{padding:14px 12px 80px}}
+@media(prefers-reduced-motion:no-preference){.bar i,.cols i{transition:all .4s}}
+</style></head><body>
+<nav id="nav" aria-label="Main"></nav><main id="main"></main><div id="toast" role="status"></div>
+<div id="dlg" class="ov"><form id="frm"><h2 id="dt"></h2><div id="df"></div><div class="row"><button class="b" type="submit">Save</button><button class="s" type="button" data-a="close">Cancel</button></div></form></div><div id="ask" class="ov"><div class="ask"><p id="aq"></p><div class="row"><button class="b" id="ay" type="button">Yes</button><button class="s" id="an" type="button">No</button></div></div></div>
+<script>
+(()=>{'use strict';
+/* ===== 1. helpers ===== */
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ymd=(d=new Date())=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const addD=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return ymd(d)};
+const wd=s=>new Date(s+'T00:00').getDay();
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const tm=s=>{const[a,b]=s.split(':');return +a*60+ +b};
+const sum=a=>a.reduce((x,y)=>x+y,0);
+const days=n=>Array.from({length:n},(_,i)=>addD(ymd(),i-n+1));
+const fmtH=m=>(m/60).toFixed(1)+'h';
+const LS={g:k=>{try{return localStorage.getItem(k)}catch(e){return null}},s:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+/* ===== 4. IndexedDB manager ===== */
+const STORES=['tasks','subjects','sessions','tests','wrong','exercises','logs','habits','hlog','journal','reminders','settings'];
+let db,D={},mem=false;
+const open=()=>new Promise((res,rej)=>{const r=indexedDB.open('lifetrack',1);r.onupgradeneeded=()=>STORES.forEach(s=>r.result.createObjectStore(s,{keyPath:'id'}));r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);r.onblocked=()=>rej(new Error('blocked'))});
+const tx=(s,m,f)=>new Promise((res,rej)=>{const t=db.transaction(s,m),o=f(t.objectStore(s));t.oncomplete=()=>res(o&&o.result);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)});
+const reload=async s=>{D[s]=mem?D[s]||[]:await tx(s,'readonly',o=>o.getAll())};
+const save=async(s,v)=>{if(!v.id)v.id=uid();if(!mem)await tx(s,'readwrite',o=>o.put(v));else{D[s]=D[s].filter(x=>x.id!==v.id);D[s].push(v)}await reload(s)};
+const rm=async(s,id)=>{if(!mem)await tx(s,'readwrite',o=>o.delete(id));else D[s]=D[s].filter(x=>x.id!==id);await reload(s)};
+const clear=async s=>{if(!mem)await tx(s,'readwrite',o=>o.clear());D[s]=[]};
+const toast=(m)=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',4500);return false};
+const $=s=>document.querySelector(s);
+/* ===== 5. state ===== */
+let view='home',selDate=ymd(),timer=null,tick=null,lastBackup=LS.g('lt_bk')||'';
+const cfg=()=>Object.assign({id:'main',name:'',theme:'dark',wake:'06:00',sleepT:8,studyT:240,fitT:30,qs:'22:30',qe:'06:00',weekStart:1,groqKey:'',model:'llama-3.3-70b-versatile'},D.settings.find(x=>x.id==='main')||{});
+const setCfg=p=>save('settings',Object.assign(cfg(),p));
+const SUBJ=['Quantitative Aptitude','English Language','Reasoning Ability','Computer Knowledge / IT'];
+async function seed(){
+ if(D.settings.find(x=>x.id==='seeded'))return;
+ const sch=[['06:00','06:15','Wake Up','Health'],['06:15','07:15','Morning Exercise','Fitness'],['07:15','07:45','Breakfast','Life'],['07:45','09:00','Mathematics','Study'],['09:00','10:00','English','Study'],['10:00','13:00','Outside Work','Work'],['13:00','14:15','Lunch','Life'],['14:15','15:30','Reasoning','Study'],['15:30','17:00','Computer / IT','Study'],['17:00','20:00','Evening Activity','Life'],['20:00','21:00','Revision','Study'],['21:00','22:30','Daily Review','Study'],['22:30','23:30','Sleep','Health']];
+ for(const[a,b,t,c]of sch)await save('tasks',{title:t,start:a,end:b,cat:c,pri:'Medium',desc:'',rec:'daily',st:{}});
+ for(const n of SUBJ)await save('subjects',{name:n,topics:[]});
+ for(const n of ['Warm-up','Surya Namaskar','Tadasana','Bhujangasana','Balasana','Vrikshasana','Squats','Wall Push-ups','Glute Bridge','Bird Dog','Relaxation'])await save('exercises',{name:n,target:''});
+ for(const n of ['Wake up on time','Exercise','Study','English practice','Reading','Avoid unnecessary mobile usage','Sleep on time'])await save('habits',{name:n,cat:'Core'});
+ await save('settings',{id:'seeded'});
+}
+/* ===== derived data ===== */
+const tasksOn=d=>D.tasks.filter(t=>t.rec==='daily'||(t.rec==='weekly'&&wd(t.date||d)===wd(d)&&(!t.date||t.date<=d))||(!t.rec&&t.date===d)).sort((a,b)=>a.start.localeCompare(b.start));
+const stOf=(t,d)=>(t.st||{})[d]||'';
+const completion=d=>{const t=tasksOn(d).filter(x=>stOf(x,d)!=='skip');return t.length?Math.round(100*t.filter(x=>stOf(x,d)==='done').length/t.length):0};
+const studyMin=d=>sum(D.sessions.filter(s=>s.date===d).map(s=>s.min));
+const logv=(type,d)=>(D.logs.find(l=>l.id===type+'|'+d)||{}).val;
+const exDone=d=>D.logs.filter(l=>l.type==='ex'&&l.date===d).length;
+const hDone=(h,d)=>D.hlog.some(l=>l.id===h+'|'+d);
+const active=d=>studyMin(d)>0||tasksOn(d).some(t=>stOf(t,d)==='done')||exDone(d)>0||D.hlog.some(l=>l.date===d)||D.journal.some(j=>j.date===d);
+const streak=()=>{let n=0,d=ymd();if(!active(d))d=addD(d,-1);while(active(d)&&n<3650){n++;d=addD(d,-1)}return n};
+const allDates=()=>{const s=new Set();D.sessions.forEach(x=>s.add(x.date));D.logs.forEach(x=>s.add(x.date));D.hlog.forEach(x=>s.add(x.date));D.journal.forEach(x=>s.add(x.date));D.tasks.forEach(t=>Object.keys(t.st||{}).forEach(k=>s.add(k)));return[...s]};
+const habStreak=h=>{let n=0,d=ymd();if(!hDone(h,d))d=addD(d,-1);while(hDone(h,d)){n++;d=addD(d,-1)}return n};
+function xp(){const sd=sum(D.sessions.map(s=>s.min));let t=0;D.tasks.forEach(x=>Object.values(x.st||{}).forEach(v=>{if(v==='done')t++}));return Math.floor(sd/10)+t*5+D.logs.filter(l=>l.type==='ex').length*10+D.hlog.length*2+D.journal.length*5+D.tests.length*10}
+function badges(){const sm=sum(D.sessions.map(s=>s.min)),wk=new Set(D.logs.filter(l=>l.type==='ex').map(l=>l.date)).size;let best=0,run=0;allDates().sort().forEach((d,i,a)=>{run=i&&addD(a[i-1],1)===d?run+1:1;if(active(d))best=Math.max(best,run);else run=0});
+ return[['First Study Session',D.sessions.length>0],['7-Day Consistency',best>=7],['25 Hours Study',sm>=1500],['First 10 Workouts',wk>=10],['30-Day Progress',best>=30],['First Mock Test',D.tests.length>0],['First Journal',D.journal.length>0]]}
+/* ===== modal ===== */
+let onSave=null;
+function modal(title,fields,cb){$('#dt').textContent=title;$('#df').innerHTML=fields.map(f=>{const v=f.v??'';const id='f_'+f.k;
+ const inp=f.t==='select'?`<select id="${id}">${f.o.map(o=>`<option ${o===v?'selected':''}>${esc(o)}</option>`).join('')}</select>`:f.t==='textarea'?`<textarea id="${id}" rows="2">${esc(v)}</textarea>`:`<input id="${id}" type="${f.t||'text'}" value="${esc(v)}" ${f.req?'required':''} ${f.t==='number'?'step="any" min="0"':''}>`;
+ return`<label for="${id}">${esc(f.l)}</label>${inp}`}).join('');onSave=()=>{const o={};fields.forEach(f=>{const e=$('#f_'+f.k);o[f.k]=f.t==='number'?(e.value===''?'':+e.value):e.value});return cb(o)};$('#dlg').classList.add('on');const f1=$('#df input,#df select,#df textarea');if(f1)f1.focus()}
+$('#frm').addEventListener('submit',async e=>{e.preventDefault();if(!$('#frm').reportValidity())return;toast('Saved ✓');let r;try{r=onSave?await onSave():0}catch(x){toast('Could not save: '+x.message);return}if(r===false)return;$('#dlg').classList.remove('on');render()});
+const yes=m=>new Promise(r=>{$('#aq').textContent=m;$('#ask').classList.add('on');const d=v=>{$('#ask').classList.remove('on');r(v)};$('#ay').onclick=()=>d(true);$('#an').onclick=()=>d(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$('#dlg').classList.remove('on')});
+/* ===== 6-13 views ===== */
+const bar=p=>`<div class="bar"><i style="width:${Math.min(100,p)}%"></i></div>`;
+const cols=(l,v,u)=>{const m=Math.max(...v,1);return`<div class="cols">${l.map((x,i)=>`<div><span>${v[i]?(+v[i].toFixed(1)):''}</span><i style="height:${v[i]/m*80}%"></i>${x}</div>`).join('')}</div>`};
+const empty=t=>`<p class="mu">${t}</p>`;
+function suggest(){const t=ymd(),o=[];const sm=studyMin(t),c=cfg();
+ if(sm<c.studyT/2)o.push(`Study so far: ${fmtH(sm)} of ${fmtH(c.studyT)}. One focused session would close the gap.`);
+ const sl=logv('sleep',addD(t,-1));if(sl&&sl<c.sleepT-1)o.push('You slept less than your target last night. Consider an earlier wind-down.');
+ const en=D.journal.filter(j=>j.energy).slice(-3);if(en.length===3&&sum(en.map(j=>+j.energy))/3<5)o.push('Energy has been low for 3 entries. Check sleep, water and breaks.');
+ const due=revDue();if(due.length)o.push(`${due.length} revision${due.length>1?'s':''} due today.`);
+ if(!exDone(t)&&!(D.logs.find(l=>l.id==='rest|'+t)))o.push('No exercise logged yet. Even a short warm-up counts.');
+ const w=D.subjects.map(s=>[s.name,sum(D.sessions.filter(x=>x.subj===s.name&&x.date>=addD(t,-6)).map(x=>x.min))]).sort((a,b)=>a[1]-b[1])[0];if(w&&D.sessions.length)o.push(`Least studied this week: ${w[0]}.`);
+ return o.length?o:['You are on track. Keep the rhythm going.']}
+function revDue(){const t=ymd(),r=[];D.subjects.forEach(s=>s.topics.forEach(tp=>{if(tp.done)[1,3,7,14,30].forEach(n=>{const d=addD(tp.doneOn,n);if(d<=t&&!(tp.rev||[]).includes(n))r.push({s,tp,n,d})})}));return r}
+const V={};
+V.home=()=>{const c=cfg(),t=ymd(),ts=tasksOn(t),now=new Date(),nm=now.getHours()*60+now.getMinutes();const nx=ts.find(x=>tm(x.start)>=nm&&!stOf(x,t));
+ const h=now.getHours(),g=h<12?'Good morning':h<18?'Good afternoon':'Good evening';const wk=days(7);const msg=['Small steps, every day.','Consistency beats intensity.','Show up, then improve.','Rest is part of progress.'][wd(t)%4];
+ return`<h1>${g}${c.name?', '+esc(c.name):''}</h1><p class="mu"><span id="clk"></span></p>
+<div class="g"><div class="c"><div class="big">${completion(t)}%</div><div class="mu">Today's completion</div>${bar(completion(t))}</div>
+<div class="c"><div class="big">${fmtH(studyMin(t))}</div><div class="mu">Study today (target ${fmtH(c.studyT)})</div></div>
+<div class="c"><div class="big">${logv('exmin',t)||0}m</div><div class="mu">Exercise · ${exDone(t)} items</div></div>
+<div class="c"><div class="big">${ts.filter(x=>stOf(x,t)==='done').length}/${ts.length}</div><div class="mu">Tasks done</div></div>
+<div class="c"><div class="big">${D.habits.length}</div><div class="mu">Active habits</div></div>
+<div class="c"><div class="big">${streak()}</div><div class="mu">Day streak</div></div></div>
+<div class="c"><h2>Next up</h2>${nx?`<b>${nx.start}</b> ${esc(nx.title)}`:empty('Nothing else scheduled today.')}<p class="mu">${msg}</p></div>
+<div class="c"><h2>Quick actions</h2><button class="b" data-a="goto" data-v="study">Start studying</button> <button class="s" data-a="goto" data-v="plan">Add task</button> <button class="s" data-a="goto" data-v="fit">Log workout</button> <button class="s" data-a="goto" data-v="journal">Write review</button> <button class="s" data-a="goto" data-v="ai">AI plan my day</button></div>
+<div class="c"><h2>Today's schedule</h2>${ts.map(x=>`<div class="row"><span>${x.start}</span><span class="f ${stOf(x,t)==='done'?'done':''}">${esc(x.title)}</span><span class="tag">${stOf(x,t)||'pending'}</span></div>`).join('')||empty('No tasks today. Add one in the Planner.')}</div>
+<div class="c"><h2>This week</h2>${cols(wk.map(d=>['Su','Mo','Tu','We','Th','Fr','Sa'][wd(d)]),wk.map(d=>studyMin(d)/60))}<p class="mu">Study hours per day</p></div>
+<div class="c"><h2>Suggestions</h2>${suggest().map(s=>`<p>• ${esc(s)}</p>`).join('')}</div>`};
+V.plan=()=>{const ts=tasksOn(selDate);return`<h1>Planner</h1><div class="row"><button class="s" data-a="dshift" data-n="-1">‹</button><input type="date" id="pd" value="${selDate}" style="width:auto"><button class="s" data-a="dshift" data-n="1">›</button><button class="b" data-a="taskadd">Add activity</button></div>
+<div class="c">${bar(completion(selDate))}<p class="mu">${completion(selDate)}% complete</p>${ts.map((x,i)=>{const ov=ts.some((y,j)=>j!==i&&tm(y.start)<tm(x.end)&&tm(x.start)<tm(y.end));const s=stOf(x,selDate);
+ return`<div class="row"><span>${x.start}–${x.end}</span><div class="f ${s==='done'?'done':''}">${esc(x.title)} <span class="tag">${esc(x.cat)}</span> <span class="tag">${x.pri}</span>${x.rec?`<span class="tag">${x.rec}</span>`:''}${ov?'<span class="warn"> ⚠ overlaps</span>':''}<div class="mu">${esc(x.desc)}</div></div>
+ <button class="s" data-a="tst" data-id="${x.id}" data-s="done">Done</button><button class="s" data-a="tst" data-id="${x.id}" data-s="skip">Skip</button>${!x.rec&&s!=='done'?`<button class="s" data-a="resch" data-id="${x.id}">Tomorrow</button>`:''}<button class="s" data-a="taskedit" data-id="${x.id}">Edit</button><button class="s d" data-a="taskdel" data-id="${x.id}">Delete</button></div>`}).join('')||empty('No activities for this date.')}</div>`};
+const taskFields=t=>[{k:'title',l:'Title',v:t.title,req:1},{k:'start',l:'Start',t:'time',v:t.start||'09:00',req:1},{k:'end',l:'End',t:'time',v:t.end||'10:00',req:1},{k:'cat',l:'Category',t:'select',o:['Study','Fitness','Health','Work','Life','Other'],v:t.cat},{k:'pri',l:'Priority',t:'select',o:['Low','Medium','High'],v:t.pri||'Medium'},{k:'rec',l:'Repeats',t:'select',o:['none','daily','weekly'],v:t.rec||'none'},{k:'desc',l:'Description',t:'textarea',v:t.desc}];
+async function taskSave(o,old){if(tm(o.end)<=tm(o.start))return toast('End time must be after start time.');const t=Object.assign({st:{}},old,o);t.rec=o.rec==='none'?'':o.rec;if(!old)t.date=selDate;const ov=tasksOn(selDate).filter(x=>x.id!==t.id&&tm(x.start)<tm(t.end)&&tm(t.start)<tm(x.end));await save('tasks',t);if(ov.length)toast('Saved, but it overlaps with: '+ov.map(x=>x.title).join(', '))}
+V.study=()=>{const c=cfg(),t=ymd(),wk=days(7);const due=revDue();
+ return`<h1>Study</h1><div class="c"><h2>Timer</h2><div class="big" id="tm">${timer?'…':'00:00'}</div>
+<label>Subject</label><select id="tsub">${D.subjects.map(s=>`<option>${esc(s.name)}</option>`).join('')}</select><label>Mode</label><select id="tmode"><option value="free">Stopwatch</option><option value="pomo">Pomodoro countdown</option></select><label>Minutes (countdown)</label><input id="tmin" type="number" value="25" min="1">
+<div class="row"><button class="b" data-a="tstart">Start</button><button class="s" data-a="tstop">Stop &amp; save</button><button class="s" data-a="manual">Add session manually</button></div></div>
+<div class="c"><h2>Today vs target</h2>${bar(studyMin(t)/c.studyT*100)}<p class="mu">${fmtH(studyMin(t))} of ${fmtH(c.studyT)}</p>${cols(wk.map(d=>d.slice(8)),wk.map(d=>studyMin(d)/60))}</div>
+<div class="c"><h2>Revision due</h2>${due.map(r=>`<div class="row"><span class="f">${esc(r.tp.n)} <span class="mu">${esc(r.s.name)} · day ${r.n}</span></span><button class="s" data-a="revdone" data-s="${r.s.id}" data-t="${esc(r.tp.n)}" data-n="${r.n}">Revised</button></div>`).join('')||empty('Nothing due. Revisions appear at 1, 3, 7, 14 and 30 days after you complete a topic.')}</div>
+<div class="c"><h2>Subjects &amp; topics</h2><button class="s" data-a="subadd">Add subject</button>${D.subjects.map(s=>`<div class="row"><b class="f">${esc(s.name)} <span class="mu">${s.topics.filter(x=>x.done).length}/${s.topics.length} done</span></b><button class="s" data-a="topadd" data-id="${s.id}">+ Topic</button><button class="s d" data-a="subdel" data-id="${s.id}">Delete</button></div>${s.topics.map(tp=>`<div class="row" style="padding-left:18px"><input type="checkbox" data-a="toptog" data-id="${s.id}" data-t="${esc(tp.n)}" ${tp.done?'checked':''} aria-label="done"><span class="f ${tp.done?'done':''}">${esc(tp.n)}</span><button class="s d" data-a="topdel" data-id="${s.id}" data-t="${esc(tp.n)}">×</button></div>`).join('')}`).join('')}</div>
+<div class="c"><h2>Sessions</h2>${[...D.sessions].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,15).map(s=>`<div class="row"><span>${s.date}</span><span class="f">${esc(s.subj)} · ${s.min} min</span><button class="s d" data-a="del" data-s="sessions" data-id="${s.id}">Delete</button></div>`).join('')||empty('No sessions yet. Start the timer above.')}</div>
+<div class="c"><h2>Mock tests</h2><button class="s" data-a="testadd">Add test</button> <button class="s" data-a="wrongadd">Add wrong question</button>${D.tests.map(x=>`<div class="row"><span>${x.date}</span><span class="f">${esc(x.name)} · ${x.correct}/${x.attempted} attempted of ${x.total} · accuracy ${x.attempted?Math.round(100*x.correct/x.attempted):0}%</span><button class="s d" data-a="del" data-s="tests" data-id="${x.id}">Delete</button></div>`).join('')||empty('No tests recorded.')}
+<h2 style="margin-top:12px">Wrong question notebook</h2>${D.wrong.map(x=>`<div class="row"><span class="f">${esc(x.q)}<div class="mu">${esc(x.subj)} — ${esc(x.note)}</div></span><button class="s d" data-a="del" data-s="wrong" data-id="${x.id}">Delete</button></div>`).join('')||empty('Empty.')}</div>`};
+V.fit=()=>{const t=selDate,rest=D.logs.find(l=>l.id==='rest|'+t);const c=cfg();
+ return`<h1>Fitness &amp; health</h1><div class="row"><input type="date" id="pd" value="${t}" style="width:auto"><button class="s" data-a="rest">${rest?'Unmark':'Mark'} rest day</button></div>
+<p class="mu">General wellness tracking only, not medical advice. Increase effort gradually and stop if something hurts.</p>
+<div class="c"><h2>Routine ${rest?'(rest day)':''}</h2>${D.exercises.map(e=>`<div class="row"><input type="checkbox" data-a="extog" data-id="${e.id}" ${D.logs.some(l=>l.id==='ex|'+t+'|'+e.id)?'checked':''} aria-label="${esc(e.name)}"><span class="f">${esc(e.name)} <span class="mu">${esc(e.target)}</span></span><button class="s" data-a="exedit" data-id="${e.id}">Edit</button><button class="s d" data-a="exdel" data-id="${e.id}">×</button></div>`).join('')||empty('No exercises yet.')}<button class="s" data-a="exadd">Add exercise</button> <button class="s" data-a="val" data-k="exmin" data-l="Exercise minutes">Log duration</button></div>
+<div class="g"><div class="c"><div class="big">${logv('water',t)||0}</div><div class="mu">Water (ml)</div><button class="s" data-a="water" data-n="250">+250</button> <button class="s" data-a="water" data-n="-250">−250</button></div>
+<div class="c"><div class="big">${logv('sleep',t)??'–'}</div><div class="mu">Sleep hours (target ${c.sleepT})</div><button class="s" data-a="val" data-k="sleep" data-l="Sleep hours">Log</button></div>
+<div class="c"><div class="big">${logv('walk',t)??'–'}</div><div class="mu">Walking (km)</div><button class="s" data-a="val" data-k="walk" data-l="Walking km">Log</button></div>
+<div class="c"><div class="big">${logv('weight',t)??'–'}</div><div class="mu">Weight kg (optional)</div><button class="s" data-a="val" data-k="weight" data-l="Weight kg">Log</button></div></div>
+<div class="c"><h2>Last 7 days</h2>${days(7).map(d=>`<div class="row"><span>${d}</span><span class="f">${exDone(d)} exercises · ${logv('exmin',d)||0} min · water ${logv('water',d)||0} ml · sleep ${logv('sleep',d)??'–'}h${D.logs.find(l=>l.id==='rest|'+d)?' · rest day':''}</span></div>`).join('')}</div>`};
+V.habits=()=>{const t=ymd(),w=days(14);return`<h1>Habits</h1><button class="b" data-a="habadd">New habit</button><div style="height:10px"></div>${D.habits.map(h=>{const p=Math.round(100*days(30).filter(d=>hDone(h.id,d)).length/30);const miss=days(30).filter(d=>!hDone(h.id,d)).map(d=>wd(d));const wm=miss.length?['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][[0,1,2,3,4,5,6].sort((a,b)=>miss.filter(x=>x===b).length-miss.filter(x=>x===a).length)[0]]:'';
+ return`<div class="c"><div class="row"><input type="checkbox" data-a="habtog" data-id="${h.id}" ${hDone(h.id,t)?'checked':''} aria-label="today"><b class="f">${esc(h.name)} <span class="tag">${esc(h.cat)}</span></b><button class="s d" data-a="habdel" data-id="${h.id}">Delete</button></div>
+ <div class="mu">Streak ${habStreak(h.id)} days · 30-day rate ${p}%${wm&&p<100?' · most missed: '+wm:''}</div>${bar(p)}<div style="display:flex;gap:3px;margin-top:6px">${w.map(d=>`<i title="${d}" style="width:14px;height:14px;border-radius:3px;background:${hDone(h.id,d)?'var(--ok)':'var(--line)'}"></i>`).join('')}</div></div>`}).join('')||empty('No habits yet.')}<p class="mu">Breaking a streak never deletes history. Past days stay recorded.</p>`};
+V.remind=()=>{const p='Notification'in window?Notification.permission:'unsupported';return`<h1>Reminders</h1>
+<div class="c"><b>Notification permission: ${p}</b><p class="mu">Reminders fire only while LifeTrack is open in a browser tab (or a background tab the browser keeps alive). A static website cannot guarantee notifications when the browser or app is closed. In-app alerts always appear while open.</p>${p==='default'?'<button class="b" data-a="perm">Enable notifications</button>':''}<button class="s" data-a="remadd">Add reminder</button></div>
+<div class="c">${D.reminders.map(r=>`<div class="row"><input type="checkbox" data-a="remtog" data-id="${r.id}" ${r.on?'checked':''} aria-label="enabled"><span class="f">${r.time} ${esc(r.title)} <span class="tag">${r.freq==='weekly'?'weekly '+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][r.day]:'daily'}</span><div class="mu">${esc(r.desc)}</div></span><button class="s d" data-a="del" data-s="reminders" data-id="${r.id}">Delete</button></div>`).join('')||empty('No reminders yet.')}</div><p class="mu">Quiet hours: ${cfg().qs}–${cfg().qe} (change in Settings).</p>`};
+V.journal=()=>{const j=D.journal.find(x=>x.date===selDate)||{};const F=(k,l,t='textarea')=>`<label>${l}</label>${t==='textarea'?`<textarea data-j="${k}" rows="2">${esc(j[k])}</textarea>`:`<input data-j="${k}" type="${t}" value="${esc(j[k])}" ${t==='number'?'min="1" max="10"':''}>`}`;
+ return`<h1>Daily review</h1><input type="date" id="pd" value="${selDate}" style="width:auto"><div class="c">${F('day','How was your day?')}${F('hours','Hours studied','number')}${F('energy','Energy (1–10)','number')}<label>Mood</label><select data-j="mood">${['','Great','Good','Okay','Low','Rough'].map(m=>`<option ${m===j.mood?'selected':''}>${m}</option>`).join('')}</select>${F('done','What did you accomplish?')}${F('dist','What distracted you?')}${F('learn','What did you learn?')}${F('improve','What should improve tomorrow?')}${F('goals','Tomorrow\'s goals')}<div class="row"><button class="b" data-a="jsave">Save review</button></div></div>
+<div class="c"><h2>History</h2>${[...D.journal].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14).map(x=>`<div class="row"><span>${x.date}</span><span class="f">Mood ${esc(x.mood||'–')} · energy ${x.energy||'–'} · ${esc((x.done||'').slice(0,60))}</span><button class="s" data-a="jopen" data-d="${x.date}">Edit</button></div>`).join('')||empty('No entries yet.')}</div>`};
+V.stats=()=>{const w=days(7),m=days(35),L=w.map(d=>['Su','Mo','Tu','We','Th','Fr','Sa'][wd(d)]);const any=D.sessions.length||D.tasks.length;const sub=D.subjects.map(s=>[s.name,sum(D.sessions.filter(x=>x.subj===s.name).map(x=>x.min))]);const tot=sum(sub.map(s=>s[1]));
+ const best=Math.max(0,...allDates().map(studyMin));
+ return`<h1>Analytics</h1><div class="c"><h2>Daily completion %</h2>${cols(L,w.map(completion))}</div><div class="c"><h2>Study hours</h2>${cols(L,w.map(d=>studyMin(d)/60))}<p class="mu">Target ${fmtH(cfg().studyT)}/day · this week ${fmtH(sum(w.map(studyMin)))} vs last week ${fmtH(sum(days(14).slice(0,7).map(studyMin)))}</p></div>
+<div class="c"><h2>Subject distribution</h2>${tot?sub.map(s=>`<div>${esc(s[0])} <span class="mu">${fmtH(s[1])}</span>${bar(s[1]/tot*100)}</div>`).join(''):empty('Log study sessions to see this.')}</div>
+<div class="c"><h2>Sleep (h)</h2>${cols(L,w.map(d=>logv('sleep',d)||0))}</div><div class="c"><h2>Fitness &amp; habits</h2><p>Workout days (7d): ${w.filter(d=>exDone(d)).length}/7 · Habit rate (7d): ${D.habits.length?Math.round(100*sum(D.habits.map(h=>w.filter(d=>hDone(h.id,d)).length))/(D.habits.length*7)):0}%</p></div>
+<div class="c"><h2>35-day activity</h2><div class="heat">${m.map(d=>`<i title="${d}" style="${active(d)?`background:var(--ac2);opacity:${.35+completion(d)/160}`:''}"></i>`).join('')}</div></div>
+<div class="c"><h2>Personal records</h2><p>Longest study day: ${fmtH(best)} · Current streak: ${streak()} · Best mock score: ${D.tests.length?Math.max(...D.tests.map(x=>x.correct))+' correct':'–'}</p>${any?'':empty('Nothing to chart yet.')}</div>`};
+V.rewards=()=>{const x=xp(),lv=Math.floor(x/100)+1;return`<h1>Progress</h1><div class="c"><div class="big">Level ${lv}</div><div class="mu">${x} XP · ${100-x%100} to next level</div>${bar(x%100)}<p class="mu">XP comes from real activity: study time, tasks, workouts, habits, reviews and tests. Missed days never remove XP.</p></div><div class="c"><h2>Badges</h2>${badges().map(b=>`<div class="row"><span>${b[1]?'🏅':'🔒'}</span><span class="f ${b[1]?'':'mu'}">${b[0]}</span></div>`).join('')}</div>
+<div class="c"><h2>Weekly challenge</h2><p>Study ${fmtH(cfg().studyT*5)} this week: ${fmtH(sum(days(7).map(studyMin)))} so far</p>${bar(sum(days(7).map(studyMin))/(cfg().studyT*5)*100)}</div>`};
+V.set=()=>{const c=cfg(),bytes=new Blob([JSON.stringify(D)]).size;return`<h1>Settings</h1><div class="c"><label>Your name</label><input id="s_name" value="${esc(c.name)}"><label>Theme</label><select id="s_theme"><option ${c.theme==='dark'?'selected':''}>dark</option><option ${c.theme==='light'?'selected':''}>light</option></select>
+<label>Wake-up time</label><input id="s_wake" type="time" value="${c.wake}"><label>Sleep target (hours)</label><input id="s_sleepT" type="number" value="${c.sleepT}"><label>Daily study target (minutes)</label><input id="s_studyT" type="number" value="${c.studyT}"><label>Fitness target (minutes)</label><input id="s_fitT" type="number" value="${c.fitT}">
+<label>Quiet hours start</label><input id="s_qs" type="time" value="${c.qs}"><label>Quiet hours end</label><input id="s_qe" type="time" value="${c.qe}"><div class="row"><button class="b" data-a="setsave">Save settings</button></div></div>
+<div class="c"><h2>Data &amp; backup</h2><p class="mu">Data lives only in this browser (${mem?'memory only — IndexedDB unavailable':'IndexedDB'}), about ${(bytes/1024).toFixed(1)} KB. There is no cloud backup. Last export: ${lastBackup||'never'}.</p>
+<button class="b" data-a="export">Export JSON</button> <label style="display:inline-block;margin:0"><input id="imp" type="file" accept=".json" hidden><span class="s" style="display:inline-block;padding:6px 10px;border:1px solid var(--line);border-radius:9px;cursor:pointer;color:var(--tx)">Import JSON</span></label> <button class="s d" data-a="reset">Reset all data</button></div>
+<div class="c"><h2>About</h2><p class="mu">LifeTrack · single-file, offline-first, no accounts, nothing leaves your device.</p></div>`};
+
+let ai={out:'',plan:null,busy:false,date:''};
+const ctx=()=>{const t=ymd(),c=cfg(),ts=tasksOn(t),w=days(7);
+ const hab=D.habits.map(h=>h.name+': '+(hDone(h.id,t)?'done':'not yet')+', streak '+habStreak(h.id)).join('; ');
+ const subj=D.subjects.map(s=>s.name+' '+sum(D.sessions.filter(x=>x.subj===s.name&&x.date>=w[0]).map(x=>x.min))+' min in 7d, topics done '+s.topics.filter(x=>x.done).length+'/'+s.topics.length).join('; ');
+ const j=[...D.journal].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,3).map(x=>`${x.date}: mood ${x.mood||'-'}, energy ${x.energy||'-'}, distracted by ${x.dist||'-'}, to improve ${x.improve||'-'}`).join('\n');
+ return `Now: ${new Date().toLocaleString()}\nUser: ${c.name||'student'} preparing for IBPS/SBI bank exams. Wake ${c.wake}, sleep target ${c.sleepT}h, study target ${c.studyT} min/day.\nToday's tasks: ${ts.map(x=>`${x.start}-${x.end} ${x.title} [${stOf(x,t)||'pending'}]`).join('; ')||'none'}\nStudy today: ${studyMin(t)} min. Study minutes last 7 days: ${w.map(studyMin).join(',')}\nSubjects: ${subj}\nExercise today: ${exDone(t)} items, ${logv('exmin',t)||0} min; water ${logv('water',t)||0} ml; last sleep ${logv('sleep',t)??logv('sleep',addD(t,-1))??'unknown'}h\nHabits: ${hab}\nMock tests: ${D.tests.slice(-3).map(x=>`${x.name} ${x.correct}/${x.attempted} of ${x.total}`).join('; ')||'none'}\nRevisions due: ${revDue().length}\nStreak: ${streak()} days\nRecent journal:\n${j||'none'}`};
+async function callAI(user,json){const c=cfg();if(!c.groqKey){toast('Add your Groq API key first.');return null}
+ const body={model:c.model||'llama-3.3-70b-versatile',temperature:.5,messages:[{role:'system',content:'You are a practical, kind study and life coach for a bank-exam student. Use only the data given and never invent numbers. Be concise and specific. No medical advice and no unsafe exercise advice.'+(json?' Reply ONLY with valid JSON.':'')},{role:'user',content:user}]};if(json)body.response_format={type:'json_object'};
+ try{const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.groqKey},body:JSON.stringify(body)});
+ if(!r.ok){const t=await r.text();throw new Error(r.status===401?'Invalid API key.':r.status===429?'Rate limit reached, try again shortly.':'Groq error '+r.status+': '+t.slice(0,120))}
+ const j=await r.json();return j.choices[0].message.content}catch(x){toast('AI failed: '+x.message);return null}}
+async function aiRun(k){const q=($('#ai_q')||{}).value||'';if(k==='chat'&&!q.trim())return toast('Type a question first.');
+ ai.busy=true;ai.out='';ai.plan=null;render();let p,json=0;const C=ctx();
+ if(k==='day')p='Analyse my day so far. Give: 1) what went well, 2) what is off track, 3) three specific next actions for the rest of today.\n\n'+C;
+ else if(k==='week')p='Give a weekly review: strengths, weakest subject, one habit change, and concrete targets for next week.\n\n'+C;
+ else if(k==='chat')p=q+'\n\nMy data:\n'+C;
+ else{json=1;ai.date=addD(ymd(),k==='plan1'?1:0);p=`Plan ${ai.date} for me. Keep fixed routine items from my tasks (meals, sleep), add study blocks that favour weak subjects and due revisions, plus light exercise and a daily review. Return JSON {"advice":"2-3 sentence summary","tasks":[{"title":"","start":"HH:MM","end":"HH:MM","cat":"Study|Fitness|Health|Work|Life|Other"}]} with non-overlapping tasks between 05:00 and 23:30.\n\n${C}`}
+ const out=await callAI(p,json);ai.busy=false;
+ if(out){if(json){try{const o=JSON.parse(out);ai.plan=(o.tasks||[]).filter(x=>x.title&&/^\d\d:\d\d$/.test(x.start)&&/^\d\d:\d\d$/.test(x.end)&&tm(x.end)>tm(x.start));ai.out=o.advice||'';if(!ai.plan.length)ai.out='The AI returned no usable tasks. Try again.'}catch(e){ai.out='Could not read the plan. Try again.'}}else ai.out=out}
+ render()}
+V.ai=()=>{const c=cfg();return`<h1>AI Coach</h1>
+<div class="c"><h2>Groq API key</h2><p class="mu">Get a free key at console.groq.com. It is stored only in this browser and left out of backups. When you ask the coach, a text summary of your tasks, study, habits and journal is sent to Groq to produce the answer.</p><label>API key</label><input id="ai_key" type="password" placeholder="gsk_..." value="${esc(c.groqKey)}" autocomplete="off"><label>Model</label><input id="ai_model" value="${esc(c.model)}"><div class="row"><button class="b" data-a="aikey">Save key</button>${c.groqKey?'<button class="s d" data-a="aikeydel">Remove key</button>':''}</div></div>
+<div class="c"><h2>Ask for help</h2><div class="row"><button class="b" data-a="airun" data-k="day">Analyse my day</button><button class="s" data-a="airun" data-k="plan0">Plan today</button><button class="s" data-a="airun" data-k="plan1">Plan tomorrow</button><button class="s" data-a="airun" data-k="week">Weekly review</button></div><label>Or ask anything</label><textarea id="ai_q" rows="2" placeholder="e.g. I have 4 free hours. What should I study?"></textarea><div class="row"><button class="s" data-a="airun" data-k="chat">Ask</button></div></div>
+${ai.busy?'<div class="c">Thinking…</div>':''}${ai.out?`<div class="c" style="white-space:pre-wrap">${esc(ai.out)}</div>`:''}
+${ai.plan?`<div class="c"><h2>Suggested plan for ${ai.date}</h2>${ai.plan.map(x=>`<div class="row"><span>${x.start}–${x.end}</span><span class="f">${esc(x.title)}</span><span class="tag">${esc(x.cat||'')}</span></div>`).join('')}<button class="b" data-a="aiapply">Add all to planner</button></div>`:''}`};
+const NAV=[['home','Home'],['ai','AI Coach'],['plan','Planner'],['study','Study'],['fit','Fitness'],['habits','Habits'],['remind','Reminders'],['journal','Review'],['stats','Analytics'],['rewards','Progress'],['set','Settings']];
+function render(){document.documentElement.dataset.t=cfg().theme;$('#nav').innerHTML='<b>LifeTrack</b>'+NAV.map(n=>`<button data-a="goto" data-v="${n[0]}" class="${n[0]===view?'on':''}">${n[1]}</button>`).join('');$('#main').innerHTML=(mem?'<div class="c warn">IndexedDB is unavailable (private mode?). Data will be lost when you close this tab. Export a backup often.</div>':'')+V[view]();clock()}
+function clock(){const e=$('#clk');if(e)e.textContent=new Date().toLocaleString([], {dateStyle:'full',timeStyle:'medium'})}
+/* ===== actions (event delegation) ===== */
+const A={
+ goto:e=>{view=e.dataset.v;render()},
+ aikey:async()=>{await setCfg({groqKey:$('#ai_key').value.trim(),model:$('#ai_model').value.trim()||'llama-3.3-70b-versatile'});toast('AI settings saved.');render()},
+ aikeydel:async()=>{await setCfg({groqKey:''});toast('Key removed.');render()},
+ airun:e=>aiRun(e.dataset.k),
+ aiapply:async()=>{let n=0;for(const x of ai.plan){await save('tasks',{title:x.title,start:x.start,end:x.end,cat:x.cat||'Study',pri:'Medium',desc:'AI suggested',rec:'',date:ai.date,st:{}});n++}selDate=ai.date;ai.plan=null;toast(n+' tasks added to the planner.');view='plan';render()},close:()=>$('#dlg').classList.remove('on'),
+ dshift:e=>{selDate=addD(selDate,+e.dataset.n);render()},
+ taskadd:()=>modal('Add activity',taskFields({}),o=>taskSave(o)),
+ taskedit:e=>{const t=D.tasks.find(x=>x.id===e.dataset.id);modal('Edit activity',taskFields(t),o=>taskSave(o,t))},
+ taskdel:async e=>{if(await yes('Delete this activity?')){await rm('tasks',e.dataset.id);render()}},
+ tst:async e=>{const t=D.tasks.find(x=>x.id===e.dataset.id);t.st=t.st||{};t.st[selDate]=t.st[selDate]===e.dataset.s?'':e.dataset.s;await save('tasks',t);render()},
+ resch:async e=>{const t=D.tasks.find(x=>x.id===e.dataset.id);t.date=addD(t.date,1);await save('tasks',t);toast('Moved to tomorrow.');render()},
+ del:async e=>{if(await yes('Delete this record?')){await rm(e.dataset.s,e.dataset.id);render()}},
+ tstart:()=>{if(timer)return;const mode=$('#tmode').value,min=+$('#tmin').value||25;timer={t0:Date.now(),subj:$('#tsub').value,mode,end:mode==='pomo'?Date.now()+min*60000:0};tick=setInterval(tickT,500);toast('Timer started.')},
+ tstop:async()=>{if(!timer)return toast('Timer is not running.');const m=Math.round((Math.min(Date.now(),timer.end||Infinity)-timer.t0)/60000);clearInterval(tick);const s=timer.subj;timer=null;if(m<1){toast('Under a minute, not saved.');return render()}await save('sessions',{date:ymd(),subj:s,min:m});toast(`Saved ${m} min of ${s}.`);render()},
+ manual:()=>modal('Add session',[{k:'date',l:'Date',t:'date',v:ymd()},{k:'subj',l:'Subject',t:'select',o:D.subjects.map(s=>s.name)},{k:'min',l:'Minutes',t:'number',v:30,req:1}],o=>save('sessions',o)),
+ subadd:()=>modal('Add subject',[{k:'name',l:'Name',req:1}],o=>save('subjects',{name:o.name,topics:[]})),
+ subdel:async e=>{if(await yes('Delete subject and its topics? Session history is kept.')){await rm('subjects',e.dataset.id);render()}},
+ topadd:e=>modal('Add topic',[{k:'n',l:'Topic',req:1}],async o=>{const s=D.subjects.find(x=>x.id===e.dataset.id);if(s.topics.some(t=>t.n===o.n))return toast('Topic already exists.');s.topics.push({n:o.n,done:0});await save('subjects',s)}),
+ topdel:async e=>{const s=D.subjects.find(x=>x.id===e.dataset.id);s.topics=s.topics.filter(t=>t.n!==e.dataset.t);await save('subjects',s);render()},
+ toptog:async e=>{const s=D.subjects.find(x=>x.id===e.dataset.id),t=s.topics.find(x=>x.n===e.dataset.t);t.done=e.checked?1:0;t.doneOn=e.checked?ymd():'';t.rev=[];await save('subjects',s);render()},
+ revdone:async e=>{const s=D.subjects.find(x=>x.id===e.dataset.s),t=s.topics.find(x=>x.n===e.dataset.t);(t.rev=t.rev||[]).push(+e.dataset.n);await save('subjects',s);render()},
+ testadd:()=>modal('Mock test',[{k:'date',l:'Date',t:'date',v:ymd()},{k:'name',l:'Name',req:1},{k:'total',l:'Total questions',t:'number',req:1},{k:'attempted',l:'Attempted',t:'number',req:1},{k:'correct',l:'Correct',t:'number',req:1}],o=>{if(o.correct>o.attempted||o.attempted>o.total)return toast('Check the numbers: correct ≤ attempted ≤ total.');return save('tests',o)}),
+ wrongadd:()=>modal('Wrong question',[{k:'subj',l:'Subject',t:'select',o:D.subjects.map(s=>s.name)},{k:'q',l:'Question',t:'textarea',req:1},{k:'note',l:'Correct approach',t:'textarea'}],o=>save('wrong',o)),
+ exadd:()=>modal('Add exercise',[{k:'name',l:'Name',req:1},{k:'target',l:'Target (e.g. 12 reps, 2 min)'}],o=>save('exercises',o)),
+ exedit:e=>{const x=D.exercises.find(y=>y.id===e.dataset.id);modal('Edit exercise',[{k:'name',l:'Name',v:x.name,req:1},{k:'target',l:'Target',v:x.target}],o=>save('exercises',Object.assign(x,o)))},
+ exdel:async e=>{if(await yes('Delete exercise?')){await rm('exercises',e.dataset.id);render()}},
+ extog:async e=>{const id='ex|'+selDate+'|'+e.dataset.id;if(e.checked)await save('logs',{id,type:'ex',date:selDate,ex:e.dataset.id});else await rm('logs',id);render()},
+ rest:async()=>{const id='rest|'+selDate;if(D.logs.find(l=>l.id===id))await rm('logs',id);else await save('logs',{id,type:'rest',date:selDate});render()},
+ water:async e=>{const v=Math.max(0,(logv('water',selDate)||0)+ +e.dataset.n);await save('logs',{id:'water|'+selDate,type:'water',date:selDate,val:v});render()},
+ val:e=>modal(e.dataset.l,[{k:'v',l:e.dataset.l,t:'number',v:logv(e.dataset.k,selDate),req:1}],o=>save('logs',{id:e.dataset.k+'|'+selDate,type:e.dataset.k,date:selDate,val:o.v})),
+ habadd:()=>modal('New habit',[{k:'name',l:'Name',req:1},{k:'cat',l:'Category',v:'General'}],o=>save('habits',o)),
+ habdel:async e=>{if(await yes('Delete habit? Its history is removed too.')){const id=e.dataset.id;await rm('habits',id);for(const l of D.hlog.filter(x=>x.hid===id))await rm('hlog',l.id);render()}},
+ habtog:async e=>{const id=e.dataset.id+'|'+ymd();if(e.checked)await save('hlog',{id,hid:e.dataset.id,date:ymd()});else await rm('hlog',id);render()},
+ perm:async()=>{try{const r=await Notification.requestPermission();toast('Permission: '+r)}catch(x){toast('Notifications not supported here.')}render()},
+ remadd:()=>modal('Reminder',[{k:'title',l:'Title',req:1},{k:'desc',l:'Description'},{k:'time',l:'Time',t:'time',v:'09:00',req:1},{k:'freq',l:'Repeat',t:'select',o:['daily','weekly']},{k:'day',l:'Weekly day (0=Sun…6=Sat)',t:'number',v:1}],o=>save('reminders',Object.assign(o,{on:1,day:+o.day||0}))),
+ remtog:async e=>{const r=D.reminders.find(x=>x.id===e.dataset.id);r.on=e.checked?1:0;await save('reminders',r)},
+ jsave:async()=>{const j={id:'j|'+selDate,date:selDate};document.querySelectorAll('[data-j]').forEach(i=>j[i.dataset.j]=i.value);await save('journal',j);toast('Review saved.');render()},
+ jopen:e=>{selDate=e.dataset.d;render()},
+ setsave:async()=>{const g=k=>$('#s_'+k).value;await setCfg({name:g('name'),theme:g('theme'),wake:g('wake'),sleepT:+g('sleepT')||8,studyT:+g('studyT')||240,fitT:+g('fitT')||30,qs:g('qs'),qe:g('qe')});toast('Settings saved.');render()},
+ export:()=>{const data={app:'LifeTrack',v:1,at:new Date().toISOString(),data:{}};STORES.forEach(s=>data.data[s]=D[s]);data.data.settings=D.settings.map(x=>{const c=Object.assign({},x);delete c.groqKey;return c});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,1)],{type:'application/json'}));a.download='lifetrack-'+ymd()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);lastBackup=ymd();LS.s('lt_bk',lastBackup);render()},
+ reset:async()=>{if(!await yes('Permanently delete ALL LifeTrack data on this device? This cannot be undone. Export a backup first if unsure.'))return;for(const s of STORES)await clear(s);await seed();toast('Data reset to defaults.');render()}
+};
+document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el||el.type==='checkbox')return;const f=A[el.dataset.a];if(f)Promise.resolve(f(el)).catch(x=>toast('Error: '+x.message))});
+document.addEventListener('change',e=>{const el=e.target;if(el.id==='pd'){selDate=el.value||ymd();render()}else if(el.id==='imp')doImport(el.files[0]);else if(el.dataset&&el.type==='checkbox'&&A[el.dataset.a])Promise.resolve(A[el.dataset.a](el)).catch(x=>toast('Error: '+x.message))});
+async function doImport(f){if(!f)return;try{const j=JSON.parse(await f.text());if(j.app!=='LifeTrack'||!j.data||typeof j.data!=='object')throw new Error('Not a LifeTrack backup.');for(const s of STORES)if(j.data[s]&&!Array.isArray(j.data[s]))throw new Error('Invalid '+s+' data.');
+ const oldKey=cfg().groqKey;const n=sum(STORES.map(s=>(j.data[s]||[]).length));const replace=await yes(`Backup has ${n} records. Replace ALL current data with it? Choose No to merge instead.`);if(!replace&&!await yes('Merge backup into current data? (Existing records with the same id are overwritten.)'))return;
+ for(const s of STORES){if(replace)await clear(s);for(const r of j.data[s]||[])if(r&&r.id){if(s==='settings'&&r.id==='main')r.groqKey=oldKey;await save(s,r)}}await seed();toast('Import complete.');render()}catch(x){toast('Import failed: '+x.message)}}
+/* ===== timer + reminders loop ===== */
+function tickT(){const e=$('#tm');if(!timer)return;const ms=timer.end?timer.end-Date.now():Date.now()-timer.t0;if(timer.end&&ms<=0){A.tstop();toast('Pomodoro finished. Take a break!');notify('Pomodoro finished','Time for a short break.');return}const s=Math.floor(Math.max(0,ms)/1000);if(e)e.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
+function notify(t,b){try{if('Notification'in window&&Notification.permission==='granted')new Notification(t,{body:b})}catch(x){}}
+function quiet(){const c=cfg(),n=new Date().getHours()*60+new Date().getMinutes(),a=tm(c.qs),b=tm(c.qe);return a<b?n>=a&&n<b:n>=a||n<b}
+function checkRem(){const now=new Date(),hm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),k=ymd();clock();const fired=JSON.parse(LS.g('lt_fired')||'{}');
+ D.reminders.forEach(r=>{if(!r.on||r.time!==hm||fired[r.id]===k||(r.freq==='weekly'&&r.day!==now.getDay()))return;fired[r.id]=k;LS.s('lt_fired',JSON.stringify(fired));if(quiet())return;toast('⏰ '+r.title+(r.desc?' — '+r.desc:''));notify(r.title,r.desc)})}
+/* ===== init ===== */
+async function init(){
+ try{db=await open();for(const s of STORES)await reload(s)}catch(x){mem=true;STORES.forEach(s=>D[s]=[]);toast('Storage unavailable: '+x.message)}
+ await seed();render();setInterval(checkRem,15000);
+ addEventListener('offline',()=>toast('You are offline. Everything still works locally.'));
+ addEventListener('beforeunload',e=>{if(timer){e.preventDefault();e.returnValue=''}});
+}
+init().catch(x=>{document.body.innerHTML='<p style="padding:20px">LifeTrack failed to start: '+esc(x.message)+'</p>'});
+})();
+</script></body></html>
